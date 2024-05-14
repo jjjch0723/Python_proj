@@ -1,0 +1,88 @@
+import json
+import openai
+import subprocess
+import winreg
+
+openai.api_key = "자신의 api_key입력"
+
+# 이전 대화를 초기화하기 위하여 previous_completion를 초기화 합니다.
+previous_completion = None
+
+def get_chrome_path():
+    try:
+        reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path) as key:
+            chrome_path = winreg.QueryValue(key, None)
+            return chrome_path
+    except Exception as e:
+        print(f"Error finding Chrome path: {e}")
+        return None
+
+chrome_path = get_chrome_path()
+if not chrome_path:
+    chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+
+# 유저에게 받을 input값을 받는 메서드
+def get_ment_from_user():
+    try:
+        user_ment = input("user : ")
+        if user_ment.strip() == "":  # 유저의 input이 공백이면.
+            return None  # Null를 반환합니다.
+        return user_ment  # 위의 if문 조건에서 걸리지 않는다면, 유저가 입력한 값을 반환합니다.
+    except EOFError as e:  # 예외 처리를 위해 Error를 e라는 변수에 저장합니다.
+        print(json.dumps({"error": str(e)}))  # 에러를 json형태로 변환하여 에러의 내용을 표시합니다.
+
+def get_link_from_response(response):
+    if response is not None:
+        if '**' in response:
+            start_of_link = response.find('**') + 2
+            end_of_link = response.find('**', start_of_link)
+            pure_link = response[start_of_link:end_of_link].strip()
+            return pure_link
+    return None
+
+def get_response():
+    global previous_completion  # 위에서 선언한 previous_completion라는 변수를 전역변수라고 메서드 내에서 다시 재선언합니다. 실질적으로 previous_completion는 위에서 선언된 전역변수입니다.
+
+    condition_text = (
+        "If the user asks for a URL, provide the URL in this format: **URL**. "
+        "If the user asks to open a URL, provide the URL in this format: **URL**. "
+        "Here's an example: **www.openai.com**. "
+        "URL is website adress. "
+        "If the user asks to open a URL in Chrome, provide a direct URL."
+    )
+
+    messages = [{"role": "system", "content": condition_text}]
+
+    while True:
+        question = get_ment_from_user()  # user가 입력한 input값을 question이라는 변수에 저장합니다.
+        if question is None or question.lower() == "close":  # 만약 question이 null 이거나 question이라는 변수에 담긴 값이 'close'라면
+            break  # while 루프물 즉 gpt와의 대화를 탈출합니다.
+
+        messages.append({"role": "user", "content": question})
+
+        if previous_completion:
+            messages.append({"role": "assistant", "content": previous_completion["choices"][0]["message"]["content"]})
+
+        try:
+            completion = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=messages
+            )
+
+            response = completion.choices[0]["message"]["content"].strip()
+            print("gpt : ", response)
+
+            link = get_link_from_response(response)
+            if link:
+                print("Opening URL in Chrome:", link)
+                subprocess.Popen([chrome_path, link], shell=True)
+
+            previous_completion = completion
+       
+        except openai.error.RateLimitError as e:
+            print("Rate limit exceeded. Please check your OpenAI usage and billing details.")
+            break
+
+if __name__ == "__main__":
+    get_response()
