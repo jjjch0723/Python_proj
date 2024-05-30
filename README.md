@@ -1,4 +1,5 @@
-# Python_proj
+# Python_proj 더조은 수업용 테스트 프로그램   
+# 학습용 코드로서 저 말고 다른 학생들을 위해 만들었습니다.
 
 ## 사용 라이브러리 및 모듈
 1.  OPENAI 0.28.0ver(GPT와의 connection을 위해 사용)
